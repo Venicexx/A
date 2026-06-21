@@ -282,8 +282,11 @@ def build_city_card(city_cn: str, data: dict) -> str:
 
 
 def build_message(results: list) -> str:
+    today = date.today()
+    weekday_cn = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][today.weekday()]
+    date_str = f"{today.year}年{today.month}月{today.day}日 {weekday_cn}"
     lines = [
-        "📅 **今日天气 · 科捷物流仓库提醒**",
+        f"📅 **{date_str} · 科捷物流仓库天气提醒**",
         "",
     ]
 
