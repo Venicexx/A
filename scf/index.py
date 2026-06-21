@@ -264,12 +264,12 @@ def build_city_card(city_cn: str, data: dict) -> str:
     wear = clothing_advice(lo_raw, hi_raw, all_rain, uv, desc_en)
 
     lines = []
-    lines.append(f"📍 **{city_cn}**  |  {desc_cn}")
+    lines.append(f"📍 {city_cn}  |  {desc_cn}")
     lines.append(f"🌡️ 当前 {temp}（体感 {feels}） | 湿度 {cc['humidity']}% | UV {uv}")
     lines.append(f"📊 今日 {lo} ~ {hi}")
     lines.append(f"🌬️ {cc['winddir16Point']}风 {cc['windspeedKmph']}km/h")
     lines.append("")
-    lines.append(f"🧥 **穿衣建议：**{wear}")
+    lines.append(f"🧥 穿衣建议：{wear}")
 
     if morning_rain >= 60:
         lines.append(f"⚠️ 上午降雨概率 {morning_rain}%，建议提前安排出货")
@@ -286,7 +286,7 @@ def build_message(results: list) -> str:
     weekday_cn = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][today.weekday()]
     date_str = f"{today.year}年{today.month}月{today.day}日 {weekday_cn}"
     lines = [
-        f"📅 **{date_str} · 科捷物流仓库天气提醒**",
+        f"📅 {date_str} · 科捷物流仓库天气提醒",
         "",
     ]
 
@@ -299,7 +299,7 @@ def build_message(results: list) -> str:
     # ── 节日/纪念日 ──
     holidays = get_today_holidays()
     if holidays:
-        lines.append("🎊 **今日节日：**")
+        lines.append("🎊 今日节日：")
         for h in holidays:
             lines.append(f"　{h}")
         lines.append("")
@@ -316,8 +316,8 @@ def build_message(results: list) -> str:
 
 def push_wechat(content: str) -> bool:
     payload = {
-        "msgtype": "markdown",
-        "markdown": {"content": content},
+        "msgtype": "text",
+        "text": {"content": content},
     }
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(

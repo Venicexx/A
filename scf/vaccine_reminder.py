@@ -57,7 +57,7 @@ def get_due_vaccines(today: date) -> list[dict]:
 
 
 def build_message(due: list[dict]) -> str:
-    lines = ["💉 **宝宝疫苗提醒**", ""]
+    lines = ["💉 宝宝疫苗提醒", ""]
     age_months = (date.today() - BIRTH_DATE).days // 30
     lines.append(f"👶 月龄：{age_months} 个月 | 📍 {LOCATION}")
     lines.append("")
@@ -66,13 +66,13 @@ def build_message(due: list[dict]) -> str:
     upcoming = [v for v in due if not v["overdue"]]
 
     if overdue:
-        lines.append("⚠️ **已超期，请尽快预约：**")
+        lines.append("⚠️ 已超期，请尽快预约：")
         for v in overdue:
             lines.append(f"　🔴 {v['name']}（应于 {v['target'].strftime('%Y-%m-%d')} 接种）")
         lines.append("")
 
     if upcoming:
-        lines.append("📅 **即将到期：**")
+        lines.append("📅 即将到期：")
         for v in upcoming:
             lines.append(f"　🟡 {v['name']} — {v['target'].strftime('%Y-%m-%d')}（{v['days']}天后）")
         lines.append("")
@@ -100,7 +100,7 @@ def build_message(due: list[dict]) -> str:
 
 
 def push_wechat(content: str) -> bool:
-    payload = {"msgtype": "markdown", "markdown": {"content": content}}
+    payload = {"msgtype": "text", "text": {"content": content}}
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(WEBHOOK_URL, data=data,
         headers={"Content-Type": "application/json; charset=utf-8"})
