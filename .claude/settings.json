@@ -1,0 +1,8 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.moonshot.cn/anthropic",
+    "ANTHROPIC_API_KEY": "sk-WFY69Olham8yqwIVATPecNlQu8uHilWMCajIrQJz8xj26Upl",
+    "ANTHROPIC_MODEL": "kimi-k2.6"
+  },
+  "model": "kimi-k2.6"
+}
