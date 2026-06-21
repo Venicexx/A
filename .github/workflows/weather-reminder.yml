@@ -1,0 +1,20 @@
+# 科捷物流每日天气提醒
+# 每天北京时间 07:30（UTC 23:30）自动推送
+
+name: 🌤️ 每日天气提醒
+
+on:
+  schedule:
+    - cron: '30 23 * * *'  # 北京时间 07:30
+  workflow_dispatch:
+
+jobs:
+  weather:
+    name: 获取天气并推送
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 运行天气推送
+        run: python scf/index.py
