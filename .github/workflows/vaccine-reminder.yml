@@ -1,0 +1,20 @@
+# 宝宝疫苗提醒
+# 每周一北京时间 08:00（UTC 00:00）自动推送
+
+name: 💉 宝宝疫苗提醒
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # 每周一北京时间 08:00
+  workflow_dispatch:
+
+jobs:
+  vaccine:
+    name: 检查疫苗并推送
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 运行疫苗检查
+        run: python scf/vaccine_reminder.py
