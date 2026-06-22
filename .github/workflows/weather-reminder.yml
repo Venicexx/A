@@ -7,6 +7,8 @@ on:
   schedule:
     - cron: '30 23 * * *'  # 北京时间 07:30
   workflow_dispatch:
+  repository_dispatch:
+    types: [weather-reminder]
 
 jobs:
   weather:
