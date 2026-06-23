@@ -488,9 +488,9 @@ def main():
         target_sheet = config["target_sheet"]
         ws = output_wb[target_sheet]
 
-        # 清空第2行起的所有旧数据（模板只有1行公式，但我们可能之前已写入）
-        if ws.max_row > 1:
-            for r in range(2, ws.max_row + 1):
+        # 清空第3行起的旧数据，保留第2行公式模板
+        if ws.max_row > 2:
+            for r in range(3, ws.max_row + 1):
                 for c in range(1, ws.max_column + 1):
                     ws.cell(row=r, column=c).value = None
 
