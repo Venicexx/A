@@ -90,3 +90,102 @@ def identify_data_type(wb: openpyxl.Workbook) -> str | None:
         if sheet_name in sheet_names:
             return dtype
     return None
+
+
+# ============================================================
+# 列映射 & 重排
+# ============================================================
+
+def read_target_columns(wb: openpyxl.Workbook, dtype: str) -> list[str]:
+    """从模板读取目标列清单。
+
+    读取规则：
+    - inbound: 收货记录查询高级筛选 的 A-AG 列（读到第一个空列为止）
+    - inventory: 总库存 的 F-W 列
+    - outbound: 出库全流程高级筛选 的 A-BO 列（读到第一个空列为止）
+
+    返回列名列表，顺序与模板一致。
+    """
+    config = TYPE_CONFIG[dtype]
+    source_sheet = config["column_source_sheet"]
+    source_range = config["column_source_range"]
+    ws = wb[source_sheet]
+
+    # 确定起始列号
+    start_col = openpyxl.utils.column_index_from_string(source_range)
+
+    columns = []
+    for c in range(start_col, ws.max_column + 1):
+        val = ws.cell(row=1, column=c).value
+        if val is None:
+            # 对于 A 列起始的，遇到空列停止；对于 F 列起始的，读到 W 列位置后如果为空也停止
+            break
+        columns.append(str(val).strip())
+
+    return columns
+
+
+def match_and_reorder(
+    source_ws: openpyxl.worksheet.worksheet.Worksheet,
+    target_columns: list[str],
+) -> tuple[list[list], dict]:
+    """将源子表列按目标列清单匹配并重排。
+
+    参数:
+        source_ws: 导出文件的数据子表
+        target_columns: 目标列名清单（有序）
+
+    返回:
+        (reordered_data, match_report)
+        reordered_data: list[list] 重排后的数据行（每行长度 = len(target_columns)）
+        match_report: {
+            "matched": int,       # 匹配成功列数
+            "missing": list[str], # 目标有但导出无的列名
+            "extra": list[str],   # 导出有但目标无的列名
+        }
+    """
+    # 读取导出文件的表头（第1行）
+    source_headers = []
+    header_col_map = {}  # 列名 → 列号(1-based)
+    for c in range(1, source_ws.max_column + 1):
+        val = source_ws.cell(row=1, column=c).value
+        if val is not None:
+            name = str(val).strip()
+            source_headers.append(name)
+            header_col_map[name] = c
+
+    # 建立映射：目标列名 → 源文件列号(None 表示缺失)
+    col_mapping: list[int | None] = []
+    missing = []
+    for tc in target_columns:
+        if tc in header_col_map:
+            col_mapping.append(header_col_map[tc])
+        else:
+            col_mapping.append(None)
+            missing.append(tc)
+
+    # 导出中有但目标清单没有的列
+    target_set = set(target_columns)
+    extra = [h for h in source_headers if h not in target_set]
+
+    # 重排数据行（跳过表头行 1）
+    reordered_data = []
+    for r in range(2, source_ws.max_row + 1):
+        row = []
+        has_data = False
+        for src_col in col_mapping:
+            if src_col is not None:
+                val = source_ws.cell(row=r, column=src_col).value
+                row.append(val)
+                if val is not None:
+                    has_data = True
+            else:
+                row.append(None)
+        if has_data:  # 跳过全空行
+            reordered_data.append(row)
+
+    return reordered_data, {
+        "matched": len(target_columns) - len(missing),
+        "missing": missing,
+        "extra": extra,
+    }
