@@ -189,3 +189,98 @@ def match_and_reorder(
         "missing": missing,
         "extra": extra,
     }
+
+
+# ============================================================
+# 校验报告模块
+# ============================================================
+
+def generate_validation_report(results: dict) -> str:
+    """根据收集的数据生成校验报告文本。
+
+    参数:
+        results: {
+            dtype: {
+                "files": [Path, ...],
+                "total_rows": int,
+                "match_report": dict,      # 来自 match_and_reorder
+                "data": list[list],        # 重排后的数据
+            }
+        }
+
+    返回: 格式化的中文校验报告字符串
+    """
+    lines = []
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    lines.append(f"{'='*50}")
+    lines.append(f"  数据校验报告 ({yesterday})")
+    lines.append(f"{'='*50}")
+
+    type_names = {
+        "inbound": "收货记录表",
+        "inventory": "库存汇总查询",
+        "outbound": "出库全流程记录",
+    }
+
+    for dtype in ["inbound", "inventory", "outbound"]:
+        if dtype not in results:
+            lines.append(f"\n【{type_names[dtype]}】❌ 未找到数据")
+            continue
+
+        r = results[dtype]
+        files = r["files"]
+        data = r["data"]
+        mr = r["match_report"]
+        name = type_names[dtype]
+
+        lines.append(f"\n【{name}】({len(files)} 个文件，共 {len(data)} 行)")
+
+        # 文件名列表
+        for f in files:
+            lines.append(f"  📄 {f.name}")
+
+        # 列匹配结果
+        total_target = mr["matched"] + len(mr["missing"])
+        if mr["missing"]:
+            lines.append(f"  列匹配: ✅ {mr['matched']}/{total_target}  ⚠️ 缺失: {', '.join(mr['missing'])}")
+        else:
+            lines.append(f"  列匹配: ✅ {total_target}/{total_target} 全部匹配")
+        if mr["extra"]:
+            lines.append(f"  ℹ️ 导出多出的列(已丢弃): {', '.join(mr['extra'])}")
+
+        # 日期范围（尝试取第1列中的日期信息）
+        if data:
+            first_vals = [row[0] for row in data if row[0] is not None]
+            if first_vals:
+                lines.append(f"  首行时间: {str(first_vals[0])[:19]}")
+                lines.append(f"  末行时间: {str(first_vals[-1])[:19]}")
+
+        # 空值统计
+        if data:
+            null_cols = []
+            for ci in range(len(data[0])):
+                null_count = sum(1 for row in data if row[ci] is None or str(row[ci]).strip() == "")
+                if null_count == len(data):
+                    # 全列为空
+                    col_name = mr.get("target_names", [f"列{ci}"])[ci] if ci < len(mr.get("target_names", [])) else f"列{ci}"
+                    null_cols.append(f"{col_name}(全空)")
+            if null_cols:
+                lines.append(f"  空值: {', '.join(null_cols[:5])}")
+
+    lines.append(f"\n{'='*50}")
+    return "\n".join(lines)
+
+
+def extract_date_range(data: list[list], col_idx: int = 0) -> tuple[str, str] | None:
+    """尝试从数据中提取日期范围。"""
+    first = None
+    last = None
+    for row in data:
+        val = row[col_idx] if col_idx < len(row) else None
+        if val is not None and str(val).strip():
+            last = str(val).strip()[:19]
+            if first is None:
+                first = last
+    if first:
+        return (first, last)
+    return None
