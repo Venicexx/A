@@ -284,3 +284,74 @@ def extract_date_range(data: list[list], col_idx: int = 0) -> tuple[str, str] | 
     if first:
         return (first, last)
     return None
+
+
+# ============================================================
+# 数据写入与公式填充
+# ============================================================
+
+def write_data_to_sheet(
+    ws: openpyxl.worksheet.worksheet.Worksheet,
+    data: list[list],
+    start_col: int,
+) -> int:
+    """将重排后的数据写入子表。
+
+    从第 2 行开始写入，start_col 为数据起始列号(1-based)。
+    返回写入的行数。
+    """
+    for ri, row_data in enumerate(data):
+        target_row = ri + 2  # 第1行是表头，从第2行开始写
+        for ci, val in enumerate(row_data):
+            ws.cell(row=target_row, column=start_col + ci, value=val)
+
+    return len(data)
+
+
+def auto_fill_formulas(
+    ws: openpyxl.worksheet.worksheet.Worksheet,
+    formula_cols: list[int],
+    data_row_count: int,
+) -> int:
+    """将第2行公式向下填充至所有数据行。
+
+    参数:
+        ws: 目标子表
+        formula_cols: 需要填充的列号列表(1-based)，如 [1,2,3,4]
+        data_row_count: 数据总行数
+
+    返回: 实际填充的公式列数
+    """
+    import openpyxl.worksheet.formula as fml
+
+    filled = 0
+    last_row = 1 + data_row_count  # 表头1行 + N行数据
+
+    for c in formula_cols:
+        src_formula = ws.cell(row=2, column=c).value
+        if src_formula is None:
+            continue
+
+        # 处理 ArrayFormula 对象（动态数组公式如 XLOOKUP）
+        if isinstance(src_formula, fml.ArrayFormula):
+            src_str = src_formula.text  # 去掉花括号，取纯公式文本
+        else:
+            src_str = str(src_formula)
+
+        if not src_str.startswith("="):
+            continue
+
+        col_letter = get_column_letter(c)
+        origin = f"{col_letter}2"
+
+        for r in range(2, last_row + 1):
+            target_cell = f"{col_letter}{r}"
+            try:
+                translated = Translator(src_str, origin=origin).translate_formula(target_cell)
+                ws.cell(row=r, column=c).value = translated
+            except Exception:
+                # 翻译失败时直接赋原公式字符串（Excel 打开时会自动调整）
+                ws.cell(row=r, column=c).value = src_str
+        filled += 1
+
+    return filled
