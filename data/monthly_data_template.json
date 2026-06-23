@@ -1,0 +1,100 @@
+{
+  "_说明": "科捷物流月度运营数据模板。填写实际数值后，运行 python scripts/monthly_report_push.py --data <此文件>",
+  "_注意": "所有数值请按实际情况修改，删除 _ 开头的注释字段后保存",
+
+  "report_month": "2026-06",
+  "warehouse": "广东省仓库",
+  "overall_assessment": "green",
+
+  "kpi": {
+    "_入库": "──── 入库指标 ────",
+    "inbound": {
+      "volume": 125000,
+      "unit": "件",
+      "receiving_accuracy": 99.2,
+      "timeliness_hours": 4.5
+    },
+
+    "_出库": "──── 出库指标 ────",
+    "outbound": {
+      "volume": 118000,
+      "unit": "件",
+      "fulfillment_rate": 98.5,
+      "on_time_delivery": 99.1,
+      "picking_accuracy": 99.7
+    },
+
+    "_库存": "──── 库存指标 ────",
+    "inventory": {
+      "total_units": 850000,
+      "accuracy": 99.8,
+      "turnover_days": 8.2,
+      "slow_moving_ratio": 3.5
+    },
+
+    "_逆向物流": "──── 逆向物流 ────",
+    "reverse_logistics": {
+      "volume": 520,
+      "unit": "件",
+      "turnaround_hours": 4.2
+    },
+
+    "_客诉": "──── 客诉与质量 ────",
+    "complaints": {
+      "count": 3,
+      "resolution_rate": 100
+    }
+  },
+
+  "targets": {
+    "inbound_receiving_accuracy": 99.0,
+    "outbound_fulfillment_rate": 98.0,
+    "on_time_delivery": 98.5,
+    "picking_accuracy": 99.5,
+    "inventory_accuracy": 99.5,
+    "inventory_turnover_days": 10,
+    "reverse_turnaround_hours": 6,
+    "complaints_max": 5
+  },
+
+  "mom_comparison": {
+    "inbound_volume": 2.3,
+    "outbound_volume": -1.5,
+    "inbound_accuracy": 0.1,
+    "fulfillment_rate": -0.2,
+    "inventory_turnover": 0.5,
+    "complaints_count": -1
+  },
+
+  "yoy_comparison": {
+    "inbound_volume": 8.5,
+    "outbound_volume": 6.2,
+    "inbound_accuracy": 0.3,
+    "fulfillment_rate": 0.5,
+    "inventory_turnover": -1.2,
+    "complaints_count": -2
+  },
+
+  "highlights": [
+    "618大促期间出库峰值日处理5万件，系统无延迟",
+    "新货架策略使库容利用率从82%提升至87%"
+  ],
+
+  "issues": [
+    {
+      "description": "花都仓3号库地面维修",
+      "resolution": "预计6月28日完工",
+      "impact": "影响约200平米存储区域"
+    }
+  ],
+
+  "next_month": {
+    "forecast_inbound": 130000,
+    "forecast_outbound": 125000,
+    "initiatives": [
+      "推进智能分拣二期上线",
+      "防汛专项检查及物资储备"
+    ],
+    "risks": "7月台风季需关注物流时效"
+  }
+}

@@ -22,3 +22,12 @@ wechat_push.json
 output/
 *.png
 *.jpg
+
+# =============================================
+# BC端库存报表自动化
+# =============================================
+data/input/*.xlsx
+data/input/*.xls
+data/output/*.xlsx
+data/archive/
+!data/*/.gitkeep
