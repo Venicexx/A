@@ -15,6 +15,7 @@ BC端库存报表自动生成脚本。
 """
 
 import openpyxl
+import openpyxl.worksheet.formula as fml
 from openpyxl.formula.translate import Translator
 from openpyxl.utils import get_column_letter
 from pathlib import Path
@@ -322,8 +323,6 @@ def auto_fill_formulas(
 
     返回: 实际填充的公式列数
     """
-    import openpyxl.worksheet.formula as fml
-
     filled = 0
     last_row = 1 + data_row_count  # 表头1行 + N行数据
 
@@ -374,8 +373,11 @@ def archive_input_files(files: list[Path], archive_subdir: Path) -> None:
                 dst = archive_subdir / f"{stem}_{i}{suffix}"
                 if not dst.exists():
                     break
-        shutil.move(str(f), str(dst))
-        print(f"  已归档: {f.name}")
+        try:
+            shutil.move(str(f), str(dst))
+            print(f"  已归档: {f.name}")
+        except Exception:
+            print(f"  ⚠️ 归档失败: {f.name}")
 
 
 # ============================================================
@@ -407,6 +409,9 @@ def main():
     results = {}  # dtype → {files, data, match_report}
     all_files_to_archive = []
 
+    # 预加载模板（一次性，不在文件循环内重复加载）
+    template_wb = openpyxl.load_workbook(TEMPLATE_PATH)
+
     for fpath in input_files:
         try:
             wb = openpyxl.load_workbook(fpath, data_only=True)
@@ -436,10 +441,8 @@ def main():
 
         source_ws = wb[source_sheet_name]
 
-        # 读取目标列清单
-        template_wb = openpyxl.load_workbook(TEMPLATE_PATH)
+        # 读取目标列清单（使用预加载的模板）
         target_columns = read_target_columns(template_wb, dtype)
-        template_wb.close()
 
         # 匹配并重排
         reordered_data, match_report = match_and_reorder(source_ws, target_columns)
@@ -457,6 +460,8 @@ def main():
         all_files_to_archive.append(fpath)
 
         wb.close()
+
+    template_wb.close()
 
     # 更新行数
     for dtype in results:
@@ -505,7 +510,12 @@ def main():
     out_name = f"BC端库存报表_{yesterday.strftime('%m%d')}.xlsx"
     out_path = OUTPUT_DIR / out_name
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_wb.save(out_path)
+    try:
+        output_wb.save(out_path)
+    except Exception:
+        print(f"\n❌ 写入失败，请检查输出文件是否被 Excel 占用")
+        output_wb.close()
+        return
     output_wb.close()
     print(f"\n✅ 报表已生成: {out_path}")
 
