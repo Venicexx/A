@@ -355,3 +355,167 @@ def auto_fill_formulas(
         filled += 1
 
     return filled
+
+
+# ============================================================
+# 归档模块
+# ============================================================
+
+def archive_input_files(files: list[Path], archive_subdir: Path) -> None:
+    """将处理完的原始文件移动到归档目录。"""
+    archive_subdir.mkdir(parents=True, exist_ok=True)
+    for f in files:
+        dst = archive_subdir / f.name
+        # 如果同名文件已存在，加序号
+        if dst.exists():
+            stem = f.stem
+            suffix = f.suffix
+            for i in range(1, 100):
+                dst = archive_subdir / f"{stem}_{i}{suffix}"
+                if not dst.exists():
+                    break
+        shutil.move(str(f), str(dst))
+        print(f"  已归档: {f.name}")
+
+
+# ============================================================
+# 主入口
+# ============================================================
+
+def main():
+    """主流程。"""
+    print("BC端库存报表自动生成工具")
+    print("-" * 40)
+
+    # 1. 检查模板
+    if not TEMPLATE_PATH.exists():
+        print(f"❌ 模板文件不存在: {TEMPLATE_PATH}")
+        print("   请先运行: python scripts/prepare_template.py")
+        return
+
+    # 2. 扫描输入文件
+    input_files = scan_input_files(INPUT_DIR)
+    if not input_files:
+        print(f"❌ data/input/ 中没有 Excel 文件，请先放入导出的原始文件。")
+        return
+
+    print(f"\n📂 扫描到 {len(input_files)} 个文件:")
+    for f in input_files:
+        print(f"  - {f.name}")
+
+    # 3. 识别每个文件的数据类型，读取并重排数据
+    results = {}  # dtype → {files, data, match_report}
+    all_files_to_archive = []
+
+    for fpath in input_files:
+        try:
+            wb = openpyxl.load_workbook(fpath, data_only=True)
+        except Exception as e:
+            print(f"⚠️ 无法打开 {fpath.name}: {e}")
+            continue
+
+        dtype = identify_data_type(wb)
+        if dtype is None:
+            print(f"⚠️ 未识别: {fpath.name}（子表名不匹配）")
+            wb.close()
+            continue
+
+        print(f"  ✅ {fpath.name} → {dtype}")
+
+        # 读取导出数据子表
+        source_sheet_name = None
+        for sn, dt in SHEET_TYPE_MAP.items():
+            if dt == dtype and sn in wb.sheetnames:
+                source_sheet_name = sn
+                break
+
+        if source_sheet_name is None:
+            print(f"    ⚠️ 找不到预期子表，跳过")
+            wb.close()
+            continue
+
+        source_ws = wb[source_sheet_name]
+
+        # 读取目标列清单
+        template_wb = openpyxl.load_workbook(TEMPLATE_PATH)
+        target_columns = read_target_columns(template_wb, dtype)
+        template_wb.close()
+
+        # 匹配并重排
+        reordered_data, match_report = match_and_reorder(source_ws, target_columns)
+        match_report["target_names"] = target_columns  # 保留列名供报告使用
+
+        # 累积到 results
+        if dtype not in results:
+            results[dtype] = {
+                "files": [],
+                "data": [],
+                "match_report": match_report,
+            }
+        results[dtype]["files"].append(fpath)
+        results[dtype]["data"].extend(reordered_data)
+        all_files_to_archive.append(fpath)
+
+        wb.close()
+
+    # 更新行数
+    for dtype in results:
+        results[dtype]["total_rows"] = len(results[dtype]["data"])
+
+    # 4. 打印校验报告
+    report = generate_validation_report(results)
+    print(report)
+
+    # 5. 等待确认
+    confirm = input("\n→ 确认生成报表? (y/n): ").strip().lower()
+    if confirm != "y":
+        print("已取消。")
+        return
+
+    # 6. 写入模板副本（直接打开模板，数据写入后另存到 output，不修改模板本身）
+    print("\n📝 正在生成报表...")
+    output_wb = openpyxl.load_workbook(TEMPLATE_PATH)
+
+    for dtype, config in TYPE_CONFIG.items():
+        if dtype not in results or not results[dtype]["data"]:
+            continue
+
+        target_sheet = config["target_sheet"]
+        ws = output_wb[target_sheet]
+
+        # 清空第2行起的所有旧数据（模板只有1行公式，但我们可能之前已写入）
+        if ws.max_row > 1:
+            for r in range(2, ws.max_row + 1):
+                for c in range(1, ws.max_column + 1):
+                    ws.cell(row=r, column=c).value = None
+
+        data = results[dtype]["data"]
+        start_col = config["write_start_col"]
+        formula_cols = config["formula_cols"]
+
+        # 写入数据
+        written = write_data_to_sheet(ws, data, start_col)
+        # 填充公式
+        filled = auto_fill_formulas(ws, formula_cols, written)
+
+        print(f"  [{target_sheet}] 写入 {written} 行，填充 {filled} 列公式")
+
+    # 7. 保存输出
+    yesterday = datetime.now() - timedelta(days=1)
+    out_name = f"BC端库存报表_{yesterday.strftime('%m%d')}.xlsx"
+    out_path = OUTPUT_DIR / out_name
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_wb.save(out_path)
+    output_wb.close()
+    print(f"\n✅ 报表已生成: {out_path}")
+
+    # 8. 归档原始文件
+    archive_subdir = ARCHIVE_DIR / yesterday.strftime("%Y-%m-%d")
+    print(f"\n📦 归档原始文件到: {archive_subdir}")
+    archive_input_files(all_files_to_archive, archive_subdir)
+
+    print("\n🎉 完成!")
+
+
+if __name__ == "__main__":
+    main()
