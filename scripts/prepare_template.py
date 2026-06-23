@@ -9,7 +9,7 @@
 import openpyxl
 from pathlib import Path
 
-BASE = Path(r"E:\Claude Code(cursor)\科捷")
+BASE = Path(__file__).resolve().parent.parent
 SRC = BASE / "BC端库存报表22日.xlsx"
 DST = BASE / "data" / "template" / "BC端库存报表模板.xlsx"
 

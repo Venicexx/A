@@ -21,7 +21,6 @@ from openpyxl.utils import get_column_letter
 from pathlib import Path
 import shutil
 from datetime import datetime, timedelta
-from collections import defaultdict
 
 # ============================================================
 # 常量
@@ -271,20 +270,6 @@ def generate_validation_report(results: dict) -> str:
     lines.append(f"\n{'='*50}")
     return "\n".join(lines)
 
-
-def extract_date_range(data: list[list], col_idx: int = 0) -> tuple[str, str] | None:
-    """尝试从数据中提取日期范围。"""
-    first = None
-    last = None
-    for row in data:
-        val = row[col_idx] if col_idx < len(row) else None
-        if val is not None and str(val).strip():
-            last = str(val).strip()[:19]
-            if first is None:
-                first = last
-    if first:
-        return (first, last)
-    return None
 
 
 # ============================================================
