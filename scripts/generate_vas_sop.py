@@ -1,5 +1,5 @@
 from docx import Document
-from docx.shared import Inches, Pt, Cm, RGBColor, Emu
+from docx.shared import Inches, Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.section import WD_ORIENT
@@ -104,6 +104,8 @@ def add_matrix_table(doc, num_workers):
     run = hdr.cells[0].paragraphs[0].add_run("步骤")
     run.bold = True
     run.font.size = Pt(9)
+    run.font.name = "微软雅黑"
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
     for i, label in enumerate(worker_labels):
         cell = hdr.cells[i + 1]
         cell.text = ""
@@ -112,6 +114,8 @@ def add_matrix_table(doc, num_workers):
         run = p.add_run(f"工位\n{label}")
         run.bold = True
         run.font.size = Pt(9)
+        run.font.name = "微软雅黑"
+        run._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
 
     # 填充颜色函数
     def set_cell_shading(cell, color):
@@ -204,6 +208,8 @@ def add_images_section(doc):
             run_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run_run = run_p.add_run()
             run_run.add_picture(img_path, width=Cm(3.5))
+        else:
+            print(f"⚠️ 图片文件未找到: {img_path}")
     return img_table
 
 
@@ -225,6 +231,8 @@ def add_footer_section(doc, num_workers):
     p2 = cell_tools.add_paragraph()
     run2 = p2.add_run("  ".join([f"□ {t}" for t in TOOLS]))
     run2.font.size = Pt(8)
+    run2.font.name = "微软雅黑"
+    run2._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
 
     # 质量标准
     cell_quality = footer_table.cell(0, 1)
@@ -248,6 +256,8 @@ def add_footer_section(doc, num_workers):
     run = p.add_run(f"v1.0  编制日期：2026-06-24  编制：科捷物流")
     run.font.size = Pt(7)
     run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+    run.font.name = "微软雅黑"
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
 
     # 空单元格
     cell_ver2 = footer_table.cell(1, 1)
@@ -256,6 +266,8 @@ def add_footer_section(doc, num_workers):
 
 def generate_sop(num_workers, output_path):
     """生成指定人数版本的SOP"""
+    if num_workers not in WORKER_ALLOCATION:
+        raise ValueError(f"不支持 {num_workers}人版，仅支持 1/2/3/4")
     doc = Document()
     set_page_a4_landscape(doc)
     add_header(doc, num_workers)
