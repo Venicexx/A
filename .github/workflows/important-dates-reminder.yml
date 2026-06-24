@@ -1,0 +1,20 @@
+# 家庭重要日期提醒
+# 每周一北京时间 12:00（UTC 04:00）自动推送
+
+name: 📅 家庭重要日期提醒
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'   # 每周一北京时间 12:00
+  workflow_dispatch:
+
+jobs:
+  remind:
+    name: 推送重要日期提醒
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 运行日期提醒
+        run: python scf/important_dates_reminder.py
