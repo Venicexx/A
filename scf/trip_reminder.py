@@ -64,19 +64,26 @@ def main():
         print(f"[SKIP] 月份不匹配: 期望={expected}, 实际={actual}")
         return
 
-    content = data.get("content", "").strip()
-    if not content:
-        print(f"[SKIP] 内容为空")
+    messages = data.get("messages", [])
+    if not messages:
+        print(f"[SKIP] 消息列表为空")
         return
 
-    # ── 推送 ──
-    ok = send_wechat(content)
-    print(f"[{'OK' if ok else 'FAIL'}] 推送{'成功' if ok else '失败'} → {expected}")
+    # ── 逐条推送（每条独立消息） ──
+    all_ok = True
+    for i, msg in enumerate(messages):
+        if not msg.strip():
+            continue
+        ok = send_wechat(msg.strip())
+        status = "OK" if ok else "FAIL"
+        print(f"[{status}] 推送第{i+1}/{len(messages)}条 {'成功' if ok else '失败'}")
+        if not ok:
+            all_ok = False
 
     # 推送成功后清空，避免重复发送
-    if ok:
+    if all_ok:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump({"year_month": expected, "content": ""}, f, ensure_ascii=False, indent=2)
+            json.dump({"year_month": expected, "messages": []}, f, ensure_ascii=False, indent=2)
         print("[CLEAN] 数据已清空")
 
 
