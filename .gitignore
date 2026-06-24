@@ -30,4 +30,39 @@ BC库存报表自动化/data/input/*.xlsx
 BC库存报表自动化/data/input/*.xls
 BC库存报表自动化/data/output/*.xlsx
 BC库存报表自动化/data/archive/
-!BC库存报表自动化/data/*/.gitkeep
+BC库存报表自动化/data/build_report.py
+BC库存报表自动化/data/BC端库存报表自动生成工具.exe
+BC库存报表自动化/data/启动工具.bat
+BC库存报表自动化/docs/
+BC库存报表自动化/template/
+BC库存报表自动化/__pycache__/
+
+# =============================================
+# 开发评审记录（.superpowers/sdd/）
+# =============================================
+.superpowers/
+
+# =============================================
+# 设计方案文档（非推送必需）
+# =============================================
+docs/superpowers/
+
+# =============================================
+# Claude 非核心技能配置
+# =============================================
+.claude/skills/
+
+# =============================================
+# 独立工具脚本
+# =============================================
+generate_cover.py
+scripts/weather_reminder.py
+scripts/setup_cron_jobs.py
+scripts/setup_scheduled_task.bat
+scripts/setup_scheduled_task.ps1
+scripts/test_cron_setup.py
+
+# =============================================
+# 冗余占位文件
+# =============================================
+data/.gitkeep
