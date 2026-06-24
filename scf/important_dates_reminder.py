@@ -70,68 +70,60 @@ def send_wechat(content: str) -> bool:
 
 
 def build_message(today: date) -> str:
-    """组装推送消息"""
+    """组装推送消息 — 仅显示未过去的日期"""
     lines = []
     lines.append("📅 家庭重要日期提醒")
     lines.append("━" * 24)
     lines.append("")
 
     year = today.year
-    upcoming = []      # 30天内的日期
-    general_info = []  # 一般备忘
+    upcoming = []
 
-    # ── 生日检查 ──
+    # ── 生日检查：仅显示今年尚未过去的生日 ──
     for name, bd, lunar in BIRTHDAYS:
-        # 如果今年生日已过，检查明年
         target = bd.replace(year=year)
         if target < today:
-            target = target.replace(year=year + 1)
+            continue  # 今年已过，不显示
         diff = (target - today).days
-
-        if diff <= 30:
-            if diff == 0:
-                upcoming.append(f"🎂 {name} 生日 **今天**！({lunar})")
-            else:
-                upcoming.append(f"🎂 {name} 生日 {target}（{lunar}）— 还有 {diff} 天")
+        if diff == 0:
+            upcoming.append(f"🎂 {name} 生日 **今天**！({lunar})")
         else:
-            general_info.append(f"🎂 {name}：{bd}（{lunar}）")
+            upcoming.append(f"🎂 {name} 生日 {target.month}月{target.day}日（{lunar}）— 还有 {diff} 天")
 
-    # ── 纪念日检查 ──
+    # ── 纪念日检查：仅显示今年尚未过去的 ──
     anniv = date(year, ANNIVERSARY[0], ANNIVERSARY[1])
-    if anniv < today:
-        anniv = anniv.replace(year=year + 1)
-    diff = (anniv - today).days
-    if diff <= 30:
+    if anniv >= today:
+        diff = (anniv - today).days
         if diff == 0:
             upcoming.append("💍 结婚纪念日 **今天**！")
         else:
-            upcoming.append(f"💍 结婚纪念日 {anniv} — 还有 {diff} 天")
-    else:
-        general_info.append(f"💍 结婚纪念日：{anniv.month}月{anniv.day}日")
+            upcoming.append(f"💍 结婚纪念日 {anniv.month}月{anniv.day}日 — 还有 {diff} 天")
 
-    # ── 证件到期检查 ──
+    # ── 证件到期（多年有效，始终显示） ──
     id_diff = (ID_EXPIRY - today).days
     if id_diff <= 90:
         upcoming.append(f"🆔 身份证到期 {ID_EXPIRY} — 还有 {id_diff} 天，请准备换证！")
     else:
-        general_info.append(f"🆔 身份证 {ID_EXPIRY} 到期（还有 {id_diff} 天）")
+        upcoming.append(f"🆔 身份证 {ID_EXPIRY} 到期（还有 {id_diff} 天）")
 
-    # ── 月度账单提醒 ──
+    # ── 本月账单提醒 ──
     rent_day = 15
     util_start, util_end = 3, 5
 
-    # 房租：当月15号前提醒
+    # 房租：无论15号过没过，都显示最近一期
     if today.day <= rent_day:
-        upcoming.append(f"💰 房租 — 每月{rent_day}号（本月{today.year}年{today.month}月{rent_day}日）")
+        upcoming.append(f"💰 本月房租 — {today.month}月{rent_day}号到期")
     else:
-        # 下月提醒
-        general_info.append(f"💰 房租：每月{rent_day}号")
+        next_month = today.month + 1 if today.month < 12 else 1
+        upcoming.append(f"💰 下月房租 — {next_month}月{rent_day}号到期")
 
     # 水电：每月3-5号出账
-    if today.day <= util_end or today.day >= 28:
-        upcoming.append(f"💡 水电燃气 — 每月{util_start}-{util_end}号出账")
+    if today.day <= util_end:
+        upcoming.append(f"💡 本月水电燃气 — {today.month}月{util_start}-{util_end}号出账")
+    elif today.day <= 28:
+        upcoming.append(f"💡 下月水电燃气 — 次月{util_start}-{util_end}号出账")
     else:
-        general_info.append(f"💡 水电燃气：每月{util_start}-{util_end}号出账")
+        upcoming.append(f"💡 本月水电燃气 — 次月初{util_start}-{util_end}号出账")
 
     # ── 组装 ──
     if upcoming:
@@ -140,17 +132,12 @@ def build_message(today: date) -> str:
             lines.append(f"  {item}")
         lines.append("")
 
-    if general_info:
-        lines.append("📋 其他备忘")
-        for item in general_info:
-            lines.append(f"  {item}")
-        lines.append("")
-
     if not upcoming:
         lines.append("✅ 本月暂无临近的重要日期。")
         lines.append("")
 
     lines.append("━" * 24)
+    lines.append("一键查看 · 每周一推送")
     return "\n".join(lines)
 
 
