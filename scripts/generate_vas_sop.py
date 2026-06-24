@@ -52,10 +52,10 @@ def set_page_a4_landscape(doc):
     section.orientation = WD_ORIENT.LANDSCAPE
     section.page_width = Cm(29.7)
     section.page_height = Cm(21.0)
-    section.top_margin = Cm(1.0)
-    section.bottom_margin = Cm(0.8)
-    section.left_margin = Cm(1.0)
-    section.right_margin = Cm(1.0)
+    section.top_margin = Cm(0.6)
+    section.bottom_margin = Cm(0.6)
+    section.left_margin = Cm(0.8)
+    section.right_margin = Cm(0.8)
 
 
 def add_header(doc, num_workers):
@@ -65,7 +65,7 @@ def add_header(doc, num_workers):
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run(title_text)
     run.bold = True
-    run.font.size = Pt(16)
+    run.font.size = Pt(14)
     run.font.name = "微软雅黑"
     run._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
 
@@ -74,13 +74,13 @@ def add_header(doc, num_workers):
     p2 = doc.add_paragraph()
     p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run2 = p2.add_run(info_text)
-    run2.font.size = Pt(9)
+    run2.font.size = Pt(8)
     run2.font.name = "微软雅黑"
     run2._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
 
 
-def add_matrix_table(doc, num_workers):
-    """添加步骤×工位矩阵表"""
+def build_matrix_table(doc, num_workers):
+    """构建步骤×工位矩阵表（返回table对象）"""
     allocation = WORKER_ALLOCATION[num_workers]
     worker_labels = [w[0] for w in allocation]
 
@@ -103,7 +103,7 @@ def add_matrix_table(doc, num_workers):
     hdr.cells[0].text = ""
     run = hdr.cells[0].paragraphs[0].add_run("步骤")
     run.bold = True
-    run.font.size = Pt(9)
+    run.font.size = Pt(8)
     run.font.name = "微软雅黑"
     run._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
     for i, label in enumerate(worker_labels):
@@ -111,9 +111,11 @@ def add_matrix_table(doc, num_workers):
         cell.text = ""
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
         run = p.add_run(f"工位\n{label}")
         run.bold = True
-        run.font.size = Pt(9)
+        run.font.size = Pt(8)
         run.font.name = "微软雅黑"
         run._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
 
@@ -130,9 +132,11 @@ def add_matrix_table(doc, num_workers):
         cell.text = ""
         p = cell.paragraphs[0]
         run = p.add_run(f"{step_num}  {step_desc}")
-        run.font.size = Pt(8)
+        run.font.size = Pt(7)
         run.font.name = "微软雅黑"
         run._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
 
         # 工位列
         for w_idx, (_, step_range) in enumerate(allocation):
@@ -140,9 +144,11 @@ def add_matrix_table(doc, num_workers):
             cell.text = ""
             p = cell.paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(0)
             if step_idx in step_range:
                 run = p.add_run("✓")
-                run.font.size = Pt(11)
+                run.font.size = Pt(10)
                 set_cell_shading(cell, "E8F5E9")  # 浅绿色
             else:
                 run = p.add_run("—")
@@ -172,8 +178,8 @@ def add_matrix_table(doc, num_workers):
     return table
 
 
-def add_images_section(doc):
-    """插入4张参考图，2×2排列"""
+def build_image_grid(doc):
+    """构建4张参考图网格（返回table对象）"""
     # 创建2行2列的表格用于排列图片
     img_table = doc.add_table(rows=2, cols=2)
     img_table.style = 'Table Grid'
@@ -207,61 +213,49 @@ def add_images_section(doc):
             run_p = cell.add_paragraph()
             run_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run_run = run_p.add_run()
-            run_run.add_picture(img_path, width=Cm(3.5))
+            run_run.add_picture(img_path, width=Cm(2.0))
         else:
             print(f"⚠️ 图片文件未找到: {img_path}")
     return img_table
 
 
-def add_footer_section(doc, num_workers):
-    """添加作业准备和质量标准"""
-    # 第一行: 工具 + 质量标准
-    footer_table = doc.add_table(rows=2, cols=2)
-    footer_table.style = 'Table Grid'
-    footer_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+def build_footer_content(cell):
+    """在给定的单元格内构建脚注内容（工具清单+质量标准+版本信息）"""
+    # 清除单元格默认段落
+    for p in cell.paragraphs:
+        p.clear()
+    p = cell.paragraphs[0]
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(1)
 
-    # 工具清单
-    cell_tools = footer_table.cell(0, 0)
-    cell_tools.text = ""
-    p = cell_tools.paragraphs[0]
     run = p.add_run("作业准备")
     run.bold = True
-    run.font.size = Pt(9)
+    run.font.size = Pt(8)
 
-    p2 = cell_tools.add_paragraph()
-    run2 = p2.add_run("  ".join([f"□ {t}" for t in TOOLS]))
-    run2.font.size = Pt(8)
+    run_q = p.add_run("　　　质量标准")
+    run_q.bold = True
+    run_q.font.size = Pt(8)
+
+    # 行2: 工具列表 + 质量条目
+    p2 = cell.add_paragraph()
+    p2.paragraph_format.space_before = Pt(0)
+    p2.paragraph_format.space_after = Pt(0)
+
+    tool_text = "  ".join([f"□ {t}" for t in TOOLS])
+    quality_text = "  |  ".join([f"• {n}" for n in QUALITY_NOTES])
+    line2 = f"{tool_text}　　{quality_text}"
+    run2 = p2.add_run(line2)
+    run2.font.size = Pt(7)
     run2.font.name = "微软雅黑"
     run2._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
 
-    # 质量标准
-    cell_quality = footer_table.cell(0, 1)
-    cell_quality.text = ""
-    p = cell_quality.paragraphs[0]
-    run = p.add_run("质量标准")
-    run.bold = True
-    run.font.size = Pt(9)
-
-    for note in QUALITY_NOTES:
-        pn = cell_quality.add_paragraph()
-        runn = pn.add_run(f"• {note}")
-        runn.font.size = Pt(8)
-        runn.font.name = "微软雅黑"
-        runn._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
-
-    # 版本信息
-    cell_ver = footer_table.cell(1, 0)
-    cell_ver.text = ""
-    p = cell_ver.paragraphs[0]
-    run = p.add_run(f"v1.0  编制日期：2026-06-24  编制：科捷物流")
-    run.font.size = Pt(7)
-    run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
-    run.font.name = "微软雅黑"
-    run._element.rPr.rFonts.set(qn("w:eastAsia"), "微软雅黑")
-
-    # 空单元格
-    cell_ver2 = footer_table.cell(1, 1)
-    cell_ver2.text = ""
+    # 版本信息行
+    p3 = cell.add_paragraph()
+    p3.paragraph_format.space_before = Pt(2)
+    p3.paragraph_format.space_after = Pt(0)
+    run3 = p3.add_run("v1.0  编制日期：2026-06-24  编制：科捷物流")
+    run3.font.size = Pt(6)
+    run3.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
 
 
 def generate_sop(num_workers, output_path):
@@ -271,20 +265,68 @@ def generate_sop(num_workers, output_path):
     doc = Document()
     set_page_a4_landscape(doc)
     add_header(doc, num_workers)
-    add_matrix_table(doc, num_workers)
 
-    # 添加间距
-    p = doc.add_paragraph()
-    run = p.add_run("")
-    run.font.size = Pt(4)
+    # 主体区域: 左矩阵 + 右图片 并排，下方脚注
+    # 用一个 2 行 2 列的容器表: 第1行=矩阵|图片, 第2行=脚注(合并两列)
+    container = doc.add_table(rows=2, cols=2)
+    container.alignment = WD_TABLE_ALIGNMENT.CENTER
+    # 容器表隐藏边框（仅做布局用）
+    tbl = container._tbl
+    tblPr = tbl.tblPr if tbl.tblPr is not None else parse_xml(f'<w:tblPr {nsdecls("w")}/>')
+    borders = parse_xml(
+        f'<w:tblBorders {nsdecls("w")}>'
+        f'  <w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/>'
+        f'  <w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>'
+        f'  <w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/>'
+        f'  <w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>'
+        f'  <w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/>'
+        f'  <w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>'
+        f'</w:tblBorders>'
+    )
+    tblPr.append(borders)
 
-    add_images_section(doc)
+    # 设置列宽: 左宽(矩阵) + 右窄(图片)
+    for cell in container.columns[0].cells:
+        cell.width = Cm(16.0)
+    for cell in container.columns[1].cells:
+        cell.width = Cm(10.0)
 
-    p = doc.add_paragraph()
-    run = p.add_run("")
-    run.font.size = Pt(4)
+    # 左单元格: 嵌入矩阵表
+    left_cell = container.cell(0, 0)
+    # 删除单元格默认段落
+    left_cell.paragraphs[0].text = ""
+    # 构造矩阵表并插入
+    matrix_doc = Document()
+    m_table = build_matrix_table(matrix_doc, num_workers)
+    left_cell._tc.get_or_add_tcPr().append(m_table._tbl)
 
-    add_footer_section(doc, num_workers)
+    # 右单元格: 嵌入图片网格
+    right_cell = container.cell(0, 1)
+    right_cell.paragraphs[0].text = ""
+    img_doc = Document()
+    i_table = build_image_grid(img_doc)
+    right_cell._tc.get_or_add_tcPr().append(i_table._tbl)
+
+    # 第2行(合并两列): 脚注
+    footer_cell = container.cell(1, 0)
+    footer_cell.merge(container.cell(1, 1))
+    footer_cell.text = ""
+    build_footer_content(footer_cell)
+
+    # 设置容器表所有单元格无内边距
+    for row in container.rows:
+        for cell in row.cells:
+            tc = cell._tc
+            tcPr = tc.get_or_add_tcPr()
+            tcMar = parse_xml(
+                f'<w:tcMar {nsdecls("w")}>'
+                f'  <w:top w:w="0" w:type="dxa"/>'
+                f'  <w:left w:w="30" w:type="dxa"/>'
+                f'  <w:bottom w:w="0" w:type="dxa"/>'
+                f'  <w:right w:w="30" w:type="dxa"/>'
+                f'</w:tcMar>'
+            )
+            tcPr.append(tcMar)
 
     doc.save(output_path)
     print(f" SOP文档已生成: {output_path}")
