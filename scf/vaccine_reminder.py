@@ -95,7 +95,7 @@ def build_message(due: list[dict]) -> str:
     lines.append(f"📋 携带：{BRING}")
     lines.append("💡 接种前确认宝宝无发热、无急性疾病")
     lines.append("")
-    lines.append("科捷物流 · 育婴助手自动推送")
+    lines.append("育婴助手自动推送")
     return "\n".join(lines)
 
 

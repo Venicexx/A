@@ -1,15 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-腾讯云 SCF 天气提醒函数
-每天 7:30 触发 → 获取广州天气 + 当日节日 → 推送到企微群
+GitHub Actions 天气提醒脚本
+每天 7:30 (cron: 30 23 * * * UTC) → 获取广州天气 + 当日节日 → 推送到企微群
 """
 
 import json
 import urllib.request
 import urllib.error
 from typing import Optional
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# ─── 时区修复：GitHub Actions 跑在 UTC，推送给国内用户需用北京时间 ───
+BEIJING_TZ = timezone(timedelta(hours=8))
+
+def today_beijing() -> date:
+    """返回北京时间今天的日期"""
+    return datetime.now(BEIJING_TZ).date()
 
 
 # ─── 企微 Webhook ──────────────────────────────
@@ -140,7 +147,7 @@ def get_cached_chinese_holiday(year: int) -> dict:
 
 def get_today_holidays() -> list[str]:
     """获取今天的节日/纪念日列表"""
-    today = date.today()
+    today = today_beijing()
     key = today.strftime("%Y-%m-%d")
     mmdd = today.strftime("%m-%d")
     found = []
@@ -236,7 +243,13 @@ def clothing_advice(lo_c: float, hi_c: float, max_rain: int, uv: int, desc_en: s
 
 def build_city_card(city_cn: str, data: dict) -> str:
     cc = data["current_condition"][0]
-    wi = data["weather"][0]
+
+    # 按北京时间匹配今日天气数据，而非 weather[0]（wttr.in 用 UTC 定"今天"）
+    today_str = today_beijing().isoformat()
+    wi = next(
+        (w for w in data["weather"] if w.get("date") == today_str),
+        data["weather"][0],
+    )
     hourly = wi["hourly"]
 
     desc_en = cc["weatherDesc"][0]["value"]
@@ -282,7 +295,7 @@ def build_city_card(city_cn: str, data: dict) -> str:
 
 
 def build_message(results: list) -> str:
-    today = date.today()
+    today = today_beijing()
     weekday_cn = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][today.weekday()]
     date_str = f"{today.year}年{today.month}月{today.day}日 {weekday_cn}"
     lines = [

@@ -9,9 +9,9 @@
 import openpyxl
 from pathlib import Path
 
-BASE = Path(__file__).resolve().parent.parent
+BASE = Path(__file__).resolve().parent.parent.parent
 SRC = BASE / "BC端库存报表22日.xlsx"
-DST = BASE / "data" / "template" / "BC端库存报表模板.xlsx"
+DST = BASE / "BC库存报表自动化" / "data" / "template" / "BC端库存报表模板.xlsx"
 
 # 需要清理数据的子表及其保留行数
 CLEAR_SHEETS = {

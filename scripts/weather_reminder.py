@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 科捷物流每日天气提醒脚本
-获取广州、佛山天气，推送到企业微信群
+- 主数据源：高德地图天气 API（实况 + 预报）
+- 降雨补充：wttr.in（逐小时降雨概率，用于出货提醒决策）
+- 目标仓库：广州增城（adcode: 440118）
+- 推送渠道：企业微信群机器人
 """
 
 import json
 import urllib.request
 import urllib.error
 import sys
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Windows GBK 编码兼容
@@ -16,119 +19,300 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-# ─── 天气描述中英对照 ────────────────────────────
-WEATHER_CN = {
-    "Sunny": "☀️ 晴天",
-    "Clear": "🌙 晴朗",
-    "Partly cloudy": "⛅ 多云",
-    "Cloudy": "☁️ 阴天",
-    "Overcast": "☁️ 阴天",
-    "Mist": "🌫️ 薄雾",
-    "Fog": "🌫️ 大雾",
-    "Light rain": "🌧️ 小雨",
-    "Light drizzle": "🌧️ 毛毛雨",
-    "Patchy rain possible": "🌦️ 局部阵雨",
-    "Patchy light rain": "🌦️ 局部小雨",
-    "Moderate rain": "🌧️ 中雨",
-    "Moderate rain at times": "🌧️ 间歇中雨",
-    "Heavy rain": "🌧️ 大雨",
-    "Heavy rain at times": "🌧️ 间歇大雨",
-    "Light rain shower": "🌦️ 小阵雨",
-    "Torrential rain shower": "⛈️ 暴雨",
-    "Thunderstorm": "⛈️ 雷暴",
-    "Thundery outbreaks possible": "⛈️ 可能有雷暴",
-    "Patchy light rain with thunder": "⛈️ 雷阵雨",
-    "Moderate or heavy rain with thunder": "⛈️ 强雷雨",
-}
-
+# ─── 配置 ────────────────────────────────────────────────
+AMAP_KEY = "7f8f03f4c0400ea203d7f8b1c0e3c0cb"
+AMAP_CITY = "440118"       # 广州增城
 WEBHOOK_URL = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=35561d77-a386-4401-9d60-f4202c539cee"
 
+# ─── 高德天气现象 → emoji 映射 ──────────────────────────
+# 高德天气 API 直接返回中文描述，这里补 emoji
+WEATHER_EMOJI = {
+    "晴": "☀️",
+    "少云": "🌤️",
+    "晴间多云": "🌤️",
+    "多云": "⛅",
+    "阴": "☁️",
+    "小雨": "🌧️",
+    "中雨": "🌧️",
+    "大雨": "🌧️",
+    "暴雨": "⛈️",
+    "大暴雨": "⛈️",
+    "特大暴雨": "⛈️",
+    "雷阵雨": "⛈️",
+    "雷阵雨伴有冰雹": "⛈️",
+    "雨夹雪": "🌨️",
+    "小雪": "🌨️",
+    "中雪": "🌨️",
+    "大雪": "🌨️",
+    "暴雪": "🌨️",
+    "阵雨": "🌦️",
+    "冻雨": "🌧️",
+    "浮尘": "🌫️",
+    "扬沙": "🌫️",
+    "沙尘暴": "🌫️",
+    "雾": "🌫️",
+    "霾": "🌫️",
+    "风": "💨",
+}
 
-def fetch_weather(city_en: str) -> dict | None:
-    """从 wttr.in 获取天气数据"""
-    url = f"https://wttr.in/{city_en}?format=j1"
+
+# ══════════════════════════════════════════════════════════
+# 高德天气 API（主数据源）
+# ══════════════════════════════════════════════════════════
+
+def fetch_amap_current() -> dict | None:
+    """获取高德实况天气（extensions=base）。
+
+    返回字段：weather, temperature, humidity, winddirection, windpower, reporttime
+    文档：https://developer.amap.com/api/webservice/guide/api/weatherinfo/
+    """
+    url = (
+        f"https://restapi.amap.com/v3/weather/weatherInfo"
+        f"?city={AMAP_CITY}&key={AMAP_KEY}&extensions=base"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/7.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        print(f"获取高德实况天气失败: {e}", file=sys.stderr)
+        return None
+
+    if data.get("status") == "1" and data.get("lives"):
+        return data["lives"][0]
+
+    print(f"高德实况天气返回异常: {data}", file=sys.stderr)
+    return None
+
+
+def fetch_amap_forecast() -> dict | None:
+    """获取高德预报天气（extensions=all），返回今日预报。
+
+    返回字段：dayweather, nightweather, daytemp, nighttemp, daywind, nightwind,
+             daypower, nightpower, date, week
+    """
+    url = (
+        f"https://restapi.amap.com/v3/weather/weatherInfo"
+        f"?city={AMAP_CITY}&key={AMAP_KEY}&extensions=all"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/7.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        print(f"获取高德预报天气失败: {e}", file=sys.stderr)
+        return None
+
+    if data.get("status") == "1" and data.get("forecasts"):
+        casts = data["forecasts"][0].get("casts", [])
+        if casts:
+            return casts[0]
+
+    print(f"高德预报天气返回异常: {data}", file=sys.stderr)
+    return None
+
+
+# ══════════════════════════════════════════════════════════
+# wttr.in（补充数据源 — 仅降雨概率）
+# ══════════════════════════════════════════════════════════
+
+def fetch_rain_probability() -> dict | None:
+    """从 wttr.in 获取逐小时降雨概率，仅用于出货提醒决策。
+
+    返回：morning_rain (6-12时最大概率), afternoon_rain (13-18时最大概率),
+          all_rain (全天最大概率)
+    失败或无数据时返回 None，不影响主流程。
+    """
+    url = "https://wttr.in/Guangzhou?format=j1"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "curl/7.0"})
         with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            data = json.loads(resp.read().decode("utf-8"))
     except Exception as e:
-        print(f"获取 {city_en} 天气失败: {e}", file=sys.stderr)
+        print(f"wttr.in 降雨数据获取失败（不影响主流程）: {e}", file=sys.stderr)
         return None
 
+    hourly = data.get("weather", [{}])[0].get("hourly", [])
+    if not hourly:
+        return None
 
-def format_temp(c: str) -> str:
-    """格式化温度"""
-    try:
-        t = int(float(c))
-        return f"{t}°C"
-    except (ValueError, TypeError):
-        return f"{c}°C"
-
-
-def translate_weather(desc: str) -> str:
-    """翻译天气描述为中文"""
-    return WEATHER_CN.get(desc, desc)
-
-
-def build_weather_card(city_cn: str, data: dict) -> str:
-    """根据天气数据构建一段城市天气文本"""
-    cc = data["current_condition"][0]
-    weather_info = data["weather"][0]
-    hourly = weather_info["hourly"]
-
-    desc_en = cc["weatherDesc"][0]["value"]
-    desc_cn = translate_weather(desc_en)
-    temp = format_temp(cc["temp_C"])
-    feels = format_temp(cc["FeelsLikeC"])
-    humidity = cc["humidity"]
-    wind = cc["windspeedKmph"]
-    wind_dir = cc["winddir16Point"]
-    uv = cc["uvIndex"]
-
-    # 当天最高/最低温
-    hi = format_temp(weather_info.get("maxtempC", "--"))
-    lo = format_temp(weather_info.get("mintempC", "--"))
-
-    # 单次遍历计算上午雨概率和全天最高雨概率
     morning_rain = 0
+    afternoon_rain = 0
     all_rain = 0
+
     for h in hourly:
         try:
             hour_num = int(h.get("time", "0")) // 100
             rain = int(h.get("chanceofrain", "0"))
-            if 6 <= hour_num <= 12:
-                morning_rain = max(morning_rain, rain)
-            all_rain = max(all_rain, rain)
         except (ValueError, TypeError):
-            pass
+            continue
 
+        all_rain = max(all_rain, rain)
+        if 6 <= hour_num <= 12:
+            morning_rain = max(morning_rain, rain)
+        elif 13 <= hour_num <= 18:
+            afternoon_rain = max(afternoon_rain, rain)
+
+    return {
+        "morning_rain": morning_rain,
+        "afternoon_rain": afternoon_rain,
+        "all_rain": all_rain,
+    }
+
+
+# ══════════════════════════════════════════════════════════
+# 消息构建
+# ══════════════════════════════════════════════════════════
+
+def weather_with_emoji(desc: str) -> str:
+    """给高德天气描述配 emoji。"""
+    for keyword, emoji in WEATHER_EMOJI.items():
+        if keyword in desc:
+            return f"{emoji} {desc}"
+    return desc
+
+
+def has_rain_keyword(weather_text: str) -> bool:
+    """判断天气预报文本中是否包含降雨关键词。"""
+    rain_keywords = ["雨", "暴雨", "雷暴", "雷阵", "雪"]
+    return any(kw in weather_text for kw in rain_keywords)
+
+
+def get_clothing_advice(day_temp_str: str) -> str:
+    """根据最高温返回穿衣建议。"""
+    try:
+        t = int(float(day_temp_str))
+    except (ValueError, TypeError):
+        return ""
+    if t >= 35:
+        return "注意防暑降温、避免户外长时间作业"
+    elif t >= 30:
+        return "建议轻薄透气、注意防晒"
+    elif t >= 20:
+        return "温度舒适"
+    elif t >= 10:
+        return "建议薄外套"
+    elif t >= 5:
+        return "建议厚外套"
+    else:
+        return "注意保暖"
+
+
+def get_travel_advice(day_temp_str: str, forecast: dict | None,
+                       rain_data: dict | None) -> str:
+    """根据天气条件返回出行建议（电动车 / 汽车）。
+
+    优先级：降雨 > 极端温度 > 默认电动车
+    """
+    # 降雨判断
+    rainy = False
+    if rain_data and rain_data.get("all_rain", 0) >= 50:
+        rainy = True
+    if forecast and has_rain_keyword(forecast.get("dayweather", "")):
+        rainy = True
+
+    if rainy:
+        return "🚗 出行建议：汽车（有降雨）"
+
+    # 温度判断
+    try:
+        t = int(float(day_temp_str))
+    except (ValueError, TypeError):
+        return "🛵 出行建议：电动车"
+    if t >= 35:
+        return "🚗 出行建议：汽车（高温炎热）"
+    elif t < 5:
+        return "🚗 出行建议：汽车（低温寒冷）"
+
+    return "🛵 出行建议：电动车"
+
+
+def build_weather_message(current: dict | None, forecast: dict | None,
+                          rain_data: dict | None) -> str:
+    """构建完整的天气推送消息（纯文本格式）。"""
     lines = []
-    lines.append(f"📍 **{city_cn}**  |  {desc_cn}")
-    lines.append(f"🌡️ 当前 {temp}（体感 {feels}） | 湿度 {humidity}% | UV {uv}")
-    lines.append(f"📊 今日 {lo} ~ {hi}")
-    lines.append(f"🌬️ {wind_dir}风 {wind}km/h")
 
-    if morning_rain >= 60:
-        lines.append(f"⚠️ 上午降雨概率 {morning_rain}%，建议提前安排出货")
-    elif morning_rain >= 30:
-        lines.append(f"🌂 上午降雨概率 {morning_rain}%，建议备雨布")
-    elif all_rain >= 60:
-        lines.append(f"🌂 今日降雨概率 {all_rain}%，关注下午天气变化")
+    # ── 标题行 + 日期行 ──
+    date_str = ""
+    week_str = ""
+    if forecast:
+        date_str = forecast.get("date", "")
+        week_str = forecast.get("week", "")
 
-    return "\n".join(lines)
-
-
-def build_full_message(cities_data: list[tuple[str, str, dict]]) -> str:
-    """构建完整的推送消息"""
-    lines = []
-    lines.append("📅 **每日天气提醒**")
+    lines.append("📅 每日天气提醒 — 广州增城仓")
+    if date_str:
+        lines.append(f"📅 {date_str} {week_str}")
     lines.append("")
 
-    for city_cn, _, data in cities_data:
-        if data:
-            lines.append(build_weather_card(city_cn, data))
-            lines.append("")
+    # ── 实况天气（高德 base）──
+    day_temp_str = "--"
+    if current:
+        weather = current.get("weather", "--")
+        temp = current.get("temperature", "--")
+        humidity = current.get("humidity", "--")
+        wind_dir = current.get("winddirection", "--")
+        wind_power = current.get("windpower", "--")
 
+        lines.append(f"📍 增城  |  {weather_with_emoji(weather)}")
+        lines.append(f"🌡️ 当前 {temp}°C  |  湿度 {humidity}%  |  {wind_dir}风 {wind_power}级")
+
+        # 温度区间紧跟当前温度
+        if forecast:
+            night_temp = forecast.get("nighttemp", "--")
+            day_temp = forecast.get("daytemp", "--")
+            day_temp_str = day_temp
+            lines.append(f"📊 {night_temp}°C ~ {day_temp}°C")
+    else:
+        lines.append("⚠️ 实况天气数据获取失败")
+
+    lines.append("")
+
+    # ── 预报详情（高德 all）──
+    if forecast:
+        day_weather = forecast.get("dayweather", "--")
+        night_weather = forecast.get("nightweather", "--")
+        day_wind = forecast.get("daywind", "--")
+        day_power = forecast.get("daypower", "--")
+
+        lines.append(f"☀️ 白天：{weather_with_emoji(day_weather)}  |  {day_wind}风 {day_power}级")
+        lines.append(f"🌙 夜间：{weather_with_emoji(night_weather)}")
+
+    # ── 降雨提醒 ──
+    rain_warnings = []
+
+    if rain_data:
+        morning = rain_data["morning_rain"]
+        afternoon = rain_data["afternoon_rain"]
+
+        if morning >= 60:
+            rain_warnings.append(f"⚠️ 上午降雨概率 {morning}%，建议提前安排出货")
+        elif morning >= 30:
+            rain_warnings.append(f"🌂 上午降雨概率 {morning}%，建议备雨布")
+
+        if afternoon >= 60:
+            rain_warnings.append(f"⚠️ 下午降雨概率 {afternoon}%，关注出货节奏")
+        elif afternoon >= 30:
+            rain_warnings.append(f"🌂 下午降雨概率 {afternoon}%，建议备雨布")
+
+    elif forecast:
+        day_w = forecast.get("dayweather", "")
+        if has_rain_keyword(day_w):
+            rain_warnings.append(f"🌂 今日预报 {day_w}，请关注仓库防潮与出货安排")
+
+    if rain_warnings:
+        lines.append("")
+        lines.extend(rain_warnings)
+
+    # ── 穿衣建议 ──
+    clothing = get_clothing_advice(day_temp_str)
+    if clothing:
+        lines.append(f"👔 {clothing}")
+
+    # ── 出行建议 ──
+    travel = get_travel_advice(day_temp_str, forecast, rain_data)
+    lines.append(travel)
+
+    lines.append("")
     lines.append("—" * 20)
     lines.append("💡 雨天请关注仓库防潮、出货节奏调整。")
     lines.append("科捷物流 · 自动推送")
@@ -136,11 +320,15 @@ def build_full_message(cities_data: list[tuple[str, str, dict]]) -> str:
     return "\n".join(lines)
 
 
+# ══════════════════════════════════════════════════════════
+# 企微推送
+# ══════════════════════════════════════════════════════════
+
 def push_to_wechat(content: str) -> bool:
-    """推送消息到企业微信"""
+    """推送文本消息到企业微信群机器人。"""
     payload = {
-        "msgtype": "markdown",
-        "markdown": {"content": content},
+        "msgtype": "text",
+        "text": {"content": content},
     }
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
@@ -157,30 +345,28 @@ def push_to_wechat(content: str) -> bool:
         return False
 
 
+# ══════════════════════════════════════════════════════════
+# 主入口
+# ══════════════════════════════════════════════════════════
+
 def main():
-    # 城市列表：英文名、中文名
-    cities = [
-        ("Guangzhou", "广州仓（花都/黄埔）"),
-        ("Foshan", "佛山仓（禅城/顺德）"),
-    ]
+    # 并行获取三路数据（高德实况 + 高德预报 + wttr 降雨概率）
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        fut_current = executor.submit(fetch_amap_current)
+        fut_forecast = executor.submit(fetch_amap_forecast)
+        fut_rain = executor.submit(fetch_rain_probability)
 
-    # 并行获取所有城市天气
-    results = []
-    with ThreadPoolExecutor(max_workers=len(cities)) as executor:
-        future_map = {executor.submit(fetch_weather, en): (cn, en) for en, cn in cities}
-        for future in as_completed(future_map):
-            cn, en = future_map[future]
-            try:
-                data = future.result()
-            except Exception:
-                data = None
-            results.append((cn, en, data))
+        current = fut_current.result()
+        forecast = fut_forecast.result()
+        rain_data = fut_rain.result()
 
-    if all(d is None for _, _, d in results):
-        print("所有城市天气获取失败，跳过推送", file=sys.stderr)
+    # 高德两路全失败才退出（wttr 失败不影响主流程）
+    if current is None and forecast is None:
+        print("高德天气 API 全部失败，跳过推送", file=sys.stderr)
         sys.exit(1)
 
-    message = build_full_message(results)
+    # 构建消息并推送
+    message = build_weather_message(current, forecast, rain_data)
     success = push_to_wechat(message)
 
     if success:

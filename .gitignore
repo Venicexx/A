@@ -26,8 +26,8 @@ output/
 # =============================================
 # BC端库存报表自动化
 # =============================================
-data/input/*.xlsx
-data/input/*.xls
-data/output/*.xlsx
-data/archive/
-!data/*/.gitkeep
+BC库存报表自动化/data/input/*.xlsx
+BC库存报表自动化/data/input/*.xls
+BC库存报表自动化/data/output/*.xlsx
+BC库存报表自动化/data/archive/
+!BC库存报表自动化/data/*/.gitkeep
