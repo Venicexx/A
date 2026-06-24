@@ -43,6 +43,14 @@ def today_beijing() -> date:
     return beijing.date()
 
 
+def safe_print(text: str):
+    """兼容 Windows GBK 终端打印（替换无法显示的字符）"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode(sys.stdout.encoding, errors="replace").decode(sys.stdout.encoding))
+
+
 def send_wechat(content: str) -> bool:
     """推送消息到企微"""
     payload = {"msgtype": "text", "text": {"content": content}}
@@ -148,13 +156,13 @@ def build_message(today: date) -> str:
 
 def main():
     today = today_beijing()
-    print(f"[INFO] 家庭日期提醒 — {today}")
+    safe_print(f"[INFO] 家庭日期提醒 — {today}")
 
     msg = build_message(today)
-    print(msg)
+    safe_print(msg)
 
     ok = send_wechat(msg)
-    print(f"[{'OK' if ok else 'FAIL'}] 推送{'成功' if ok else '失败'}")
+    safe_print(f"[{'OK' if ok else 'FAIL'}] 推送{'成功' if ok else '失败'}")
     return 0 if ok else 1
 
 
