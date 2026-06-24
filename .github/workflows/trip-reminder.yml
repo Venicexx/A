@@ -1,0 +1,23 @@
+# 家庭月度出游推荐
+# 每月第一个周五北京时间 09:00（UTC 01:00）自动推送
+
+name: 🚗 家庭出游推荐
+
+on:
+  schedule:
+    # 每月1-7号每天跑，脚本自行判断是否为周五
+    - cron: '0 1 1-7 * *'   # 北京时间 09:00 (UTC+8)
+  workflow_dispatch:
+  repository_dispatch:
+    types: [trip-reminder]
+
+jobs:
+  trip:
+    name: 推送出游推荐
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 运行出游推送
+        run: python scf/trip_reminder.py
