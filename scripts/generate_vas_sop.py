@@ -63,7 +63,11 @@ def _fill_matrix(table, allocation, worker_labels, num_workers):
     # 标题行
     hdr = table.rows[0]
     hdr.cells[0].text = ""
-    run = hdr.cells[0].paragraphs[0].add_run("步骤")
+    p0 = hdr.cells[0].paragraphs[0]
+    p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p0.paragraph_format.space_before = Pt(0)
+    p0.paragraph_format.space_after = Pt(0)
+    run = p0.add_run("步骤")
     run.bold = True
     run.font.size = Pt(8)
     run.font.name = "微软雅黑"
@@ -92,6 +96,7 @@ def _fill_matrix(table, allocation, worker_labels, num_workers):
         cell = row.cells[0]
         cell.text = ""
         p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = p.add_run(f"{step_num}  {step_desc}")
         run.font.size = Pt(7)
         run.font.name = "微软雅黑"
@@ -125,6 +130,9 @@ def _fill_matrix(table, allocation, worker_labels, num_workers):
     cell = last_row.cells[0]
     cell.text = ""
     p = cell.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(0)
     run = p.add_run("动作数")
     run.bold = True
     run.font.size = Pt(8)
@@ -146,6 +154,8 @@ def add_header(doc, num_workers):
     title_text = f"增值服务 · 操作手册与说明书置换作业指导卡    {num_workers}人版"
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(0)
     run = p.add_run(title_text)
     run.bold = True
     run.font.size = Pt(14)
@@ -156,6 +166,8 @@ def add_header(doc, num_workers):
     info_text = f"客户：中移物流　　地点：广东仓库　　每箱：20台　　版本：{num_workers}人版"
     p2 = doc.add_paragraph()
     p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p2.paragraph_format.space_before = Pt(0)
+    p2.paragraph_format.space_after = Pt(0)
     run2 = p2.add_run(info_text)
     run2.font.size = Pt(8)
     run2.font.name = "微软雅黑"
@@ -171,15 +183,18 @@ def generate_sop(num_workers, output_path):
     add_header(doc, num_workers)
 
     # ---- 容器表: 2行(主内容+脚注) × 2列(矩阵+图片) ----
-    # 可用高度 = 21 - 0.6上 - 0.6下 - 标题(≈1.0) - 版本信息(≈0.3) = ~18.5cm
-    MAIN_HEIGHT = Cm(16.5)  # 留给主内容区的高度
-    FOOT_HEIGHT = Cm(1.2)   # 脚注行高
+    # 可用高度 ≈ 19.8cm (21 - 0.6上 - 0.6下)
+    # 标题+信息行 ≈ 1.2cm → 17.8cm留给容器表
+    MAIN_HEIGHT = Cm(15.5)  # 矩阵+图片区域 (留足余量)
+    FOOT_HEIGHT = Cm(1.0)   # 脚注行
 
     container = doc.add_table(rows=2, cols=2)
     container.alignment = WD_TABLE_ALIGNMENT.CENTER
     # 设置第1行高度（主内容区）
     container.rows[0].height = MAIN_HEIGHT
+    container.rows[0].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
     container.rows[1].height = FOOT_HEIGHT
+    container.rows[1].height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
     # 容器表隐藏边框（仅做布局用）
     tbl = container._tbl
@@ -195,6 +210,12 @@ def generate_sop(num_workers, output_path):
         f'</w:tblBorders>'
     )
     tblPr.append(borders)
+
+    # 表格间距归零 (防止前/后段落间隔)
+    tblSpacing = parse_xml(
+        f'<w:tblSpacing {nsdecls("w")} w:before="0" w:after="0" w:line="0" w:type="dxa"/>'
+    )
+    tblPr.append(tblSpacing)
 
     # 设置列宽
     container.columns[0].width = Cm(16.0)
@@ -269,6 +290,15 @@ def generate_sop(num_workers, output_path):
         run.font.size = Pt(6)
         run.bold = True
         run.font.color.rgb = RGBColor(0x19, 0x76, 0xD2)
+
+        # 按操作流程添加方向箭头：③ → ④ → ⑤
+        arrows = ["  →", "  ↓", "  →", ""]
+        arrow = arrows[idx]
+        if arrow:
+            run_a = p.add_run(arrow)
+            run_a.font.size = Pt(10)
+            run_a.bold = True
+            run_a.font.color.rgb = RGBColor(0xFF, 0x57, 0x22)
 
         if "合格证" in img_filename:
             run2 = p.add_run(" !勿遗失")
