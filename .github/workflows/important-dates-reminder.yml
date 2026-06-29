@@ -7,6 +7,8 @@ on:
   schedule:
     - cron: '0 4 * * 1'   # 每周一北京时间 12:00
   workflow_dispatch:
+  repository_dispatch:
+    types: [important-dates-reminder]
 
 jobs:
   remind:
