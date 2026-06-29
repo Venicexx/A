@@ -1,11 +1,11 @@
 # 科捷物流每日天气提醒
-# 每天北京时间 07:30（UTC 23:30）自动推送
+# 每天北京时间 07:30 自动推送（GitHub 内置 cron）
 
 name: 🌤️ 每日天气提醒
 
 on:
   schedule:
-    - cron: '30 23 * * *'  # 北京时间 07:30
+    - cron: '30 23 * * *'   # UTC 23:30 = 北京时间 07:30
   workflow_dispatch:
   repository_dispatch:
     types: [weather-reminder]
