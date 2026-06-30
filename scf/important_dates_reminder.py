@@ -154,6 +154,10 @@ def build_message(today: date) -> str:
 
 def main():
     today = today_beijing()
+    # 仅周一、每月5号、每月15号推送
+    if today.weekday() != 0 and today.day not in (5, 15):
+        safe_print(f"[SKIP] 今天不是推送日（周一/5号/15号），跳过")
+        return
     safe_print(f"[INFO] 家庭日期提醒 — {today}")
 
     msg = build_message(today)
