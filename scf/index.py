@@ -327,6 +327,12 @@ def build_weather_message(current: dict | None, forecast: dict | None,
     lines.append("—" * 20)
     lines.append("💡 雨天请关注仓库防潮、出货节奏调整。")
     lines.append("科捷物流 · 自动推送")
+    lines.append("")
+
+    # 实际推送时间戳（北京时间）
+    from datetime import datetime, timezone, timedelta
+    now_bj = datetime.now(timezone.utc) + timedelta(hours=8)
+    lines.append(f"⏰ {now_bj.strftime('%Y-%m-%d %H:%M:%S')}")
 
     return "\n".join(lines)
 

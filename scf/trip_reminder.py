@@ -111,6 +111,12 @@ def render_recommendation(rec: dict, year_month: str) -> str:
         lines.append(f"• {n}")
 
     lines.append("━" * 30)
+
+    # 实际推送时间戳（北京时间）
+    from datetime import datetime, timezone, timedelta
+    now_bj = datetime.now(timezone.utc) + timedelta(hours=8)
+    lines.append(f"⏰ {now_bj.strftime('%Y-%m-%d %H:%M:%S')}")
+
     return "\n".join(lines)
 
 

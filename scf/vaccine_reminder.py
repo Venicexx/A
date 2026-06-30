@@ -96,6 +96,12 @@ def build_message(due: list[dict]) -> str:
     lines.append("💡 接种前确认宝宝无发热、无急性疾病")
     lines.append("")
     lines.append("育婴助手自动推送")
+
+    # 实际推送时间戳（北京时间）
+    from datetime import datetime, timezone, timedelta
+    now_bj = datetime.now(timezone.utc) + timedelta(hours=8)
+    lines.append(f"⏰ {now_bj.strftime('%Y-%m-%d %H:%M:%S')}")
+
     return "\n".join(lines)
 
 
